@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+server/.env
+*.pyc
+node_modules/
+dist/
+build/
+.temp_files/
+rag-backend/.env
