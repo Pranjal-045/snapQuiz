@@ -6,14 +6,23 @@ import uvicorn
 
 app = FastAPI()
 
-# In main.py
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("CLIENT_URL", "*"), os.getenv("NODE_BACKEND_URL", "*")],
+    allow_origins=["*"],  # You can restrict this in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add a root endpoint
+@app.get("/")
+async def root():
+    return {"message": "Welcome to snapQuiz RAG API", "status": "online"}
+
+# Add a health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 @app.post("/upload")
 async def upload_file(
