@@ -25,97 +25,118 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Root endpoint
 @app.get("/")
 async def root():
     return {
         "message": "Welcome to snapQuiz RAG API",
-        "status": "online",
-        "endpoints": [
-            {"path": "/", "method": "GET", "description": "API information"},
-            {"path": "/health", "method": "GET", "description": "Health check endpoint"},
-            {"path": "/upload", "method": "POST", "description": "Upload PDF and generate MCQs"}
-        ]
+        "status": "online"
     }
 
-# Health check endpoint
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "api_key": "Available" if os.getenv("GROQ_API_KEY") else "Missing"}
 
 def extract_text_from_pdf(pdf_path: str) -> str:
-    """Extract text from a PDF file."""
+    """Extract text from a PDF file with extensive debugging."""
     text = ""
+    page_count = 0
+    
     try:
         with open(pdf_path, 'rb') as file:
-            reader = PdfReader(file)
-            for page in reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n\n"
-                    
-        if not text.strip():
-            raise ValueError("No text could be extracted from the PDF")
+            # Get file size for debugging
+            file.seek(0, os.SEEK_END)
+            file_size = file.tell()
+            file.seek(0)
             
-        print(f"Successfully extracted {len(text)} characters from PDF")
-        # Print a small sample of the text for debugging
-        print(f"Sample text: {text[:200]}...")
-        return text
+            print(f"PDF file size: {file_size} bytes")
+            
+            try:
+                reader = PdfReader(file)
+                print(f"PDF has {len(reader.pages)} pages")
+                
+                for i, page in enumerate(reader.pages):
+                    page_count += 1
+                    try:
+                        page_text = page.extract_text()
+                        if page_text and len(page_text.strip()) > 10:  # Ensure we have meaningful text
+                            text += page_text + "\n\n"
+                            print(f"Page {i+1}: Extracted {len(page_text)} chars")
+                        else:
+                            print(f"Page {i+1}: No meaningful text extracted")
+                    except Exception as e:
+                        print(f"Error extracting text from page {i+1}: {e}")
+            except Exception as e:
+                print(f"Error reading PDF: {e}")
+                raise HTTPException(status_code=400, detail=f"Error reading PDF: {str(e)}")
         
+        # Check if we got any usable text
+        cleaned_text = text.strip()
+        print(f"Total extracted text: {len(cleaned_text)} chars from {page_count} pages")
+        
+        if len(cleaned_text) < 100:
+            print("WARNING: Very little text extracted, PDF might be image-based or scanned")
+            if len(cleaned_text) > 0:
+                print(f"Sample of extracted text: {cleaned_text[:100]}")
+            raise ValueError("Insufficient text extracted from PDF")
+        
+        print(f"Sample of extracted text: {cleaned_text[:200]}...")
+        return cleaned_text
+        
+    except ValueError as e:
+        # Re-raise ValueError for specific handling
+        raise
     except Exception as e:
-        print(f"Error extracting text from PDF: {e}")
+        print(f"Unexpected error extracting text: {e}")
         raise HTTPException(status_code=500, detail=f"PDF extraction failed: {str(e)}")
 
 async def generate_mcqs_with_groq(text: str, file_name: str, num_questions: int = 5) -> List[Dict[str, Any]]:
-    """Generate MCQs using the Groq API directly."""
+    """Generate MCQs using Groq API, using a more powerful model."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY not found in environment variables")
     
-    # Truncate text if it's too long but keep as much as possible
-    max_tokens = 6000
-    if len(text) > max_tokens * 4:  # Rough character to token ratio
-        print(f"Text is too long ({len(text)} chars), truncating to approximately {max_tokens} tokens")
-        text = text[:max_tokens * 4]
+    # Truncate text if needed
+    max_chars = 24000  # Maximum context for llama3-70b
+    if len(text) > max_chars:
+        print(f"Text is too long ({len(text)} chars), truncating to {max_chars} chars")
+        text = text[:max_chars]
     
-    # FIXED PROMPT: Explicitly instructs not to mention the filename in questions
-    # and focuses on the document content itself
+    # Updated prompt that's very explicit
     prompt = f"""
-    You are creating a quiz based on the content of a document. 
-    
-    The following text was extracted from a document:
-    ---START OF DOCUMENT CONTENT---
+    I will provide you with text extracted from a document. Your task is to create {num_questions} multiple-choice questions based ONLY on the specific content in this text.
+
+    TEXT CONTENT FROM DOCUMENT:
+    ```
     {text}
-    ---END OF DOCUMENT CONTENT---
-    
-    Create {num_questions} multiple-choice questions based ONLY on the specific information provided in the document text above.
-    
-    IMPORTANT INSTRUCTIONS:
-    1. DO NOT mention the filename or refer to "the PDF" or "the document" in any question or answer.
-    2. Questions should be about the specific content, facts, concepts, or information in the text.
-    3. Each question must have exactly 4 options (A, B, C, D) with only one correct answer.
-    4. Ensure questions are specific to this content, not generic.
-    5. Cover different topics from the document to test various aspects.
-    
-    Format the response EXACTLY as a JSON array like this:
+    ```
+
+    CRITICAL REQUIREMENTS:
+    1. NEVER mention the document, PDF, or any filenames in your questions or answers
+    2. Questions must be about SPECIFIC facts, concepts, or information from the text
+    3. Each question must have exactly 4 options labeled A, B, C, D with only one correct answer
+    4. If the text appears to be incomplete or lacks substantive content, create questions based on whatever information is available
+    5. ALL questions must be derived from the text content provided - do not make up information
+
+    Format your response as a JSON array like this:
     [
       {{
-        "question": "Specific question about content?",
+        "question": "Specific question about content from the text?",
         "options": {{
-          "A": "Correct answer",
-          "B": "Wrong option",
-          "C": "Wrong option",
-          "D": "Wrong option"
+          "A": "Correct answer from the text",
+          "B": "Incorrect but plausible option",
+          "C": "Incorrect but plausible option",
+          "D": "Incorrect but plausible option"
         }},
         "answer": "A"
-      }}
+      }},
+      ...more questions...
     ]
-    
-    RETURN ONLY THE JSON ARRAY. No introductions, explanations or other text.
+
+    RETURN ONLY THE JSON ARRAY WITH NO OTHER TEXT OR EXPLANATION.
     """
     
     try:
-        print(f"Sending request to Groq API for document: {file_name}")
+        print(f"Sending request to Groq API using model llama3-70b for document: {file_name}")
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -125,12 +146,12 @@ async def generate_mcqs_with_groq(text: str, file_name: str, num_questions: int 
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "llama3-8b-8192",
+                    "model": "llama3-70b-8192",  # Using more powerful model
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.1,  # Very low temperature for more deterministic output
+                    "temperature": 0.1,
                     "max_tokens": 2000,
                 },
-                timeout=120.0  # Longer timeout for complex PDFs
+                timeout=120.0
             )
             
             response.raise_for_status()
@@ -140,14 +161,15 @@ async def generate_mcqs_with_groq(text: str, file_name: str, num_questions: int 
                 raise HTTPException(status_code=500, detail="Invalid response from Groq API")
                 
             content = data["choices"][0]["message"]["content"]
+            print(f"Received response with {len(content)} chars")
             
             # Extract JSON from the response
             json_start = content.find('[')
             json_end = content.rfind(']') + 1
             
             if json_start == -1 or json_end <= 0:
-                print("Failed to find JSON in response. Full response:")
-                print(content[:1000])  # Print part of response for debugging
+                print("Failed to find JSON in response. Response preview:")
+                print(content[:500])
                 raise HTTPException(status_code=500, detail="Could not find valid JSON in API response")
                 
             json_str = content[json_start:json_end]
@@ -155,23 +177,38 @@ async def generate_mcqs_with_groq(text: str, file_name: str, num_questions: int 
             try:
                 mcqs = json.loads(json_str)
                 
-                # Validate the MCQs to ensure they follow our requirements
-                for i, mcq in enumerate(mcqs):
-                    # Check if the question mentions the filename or "pdf" or "document"
-                    question_text = mcq.get("question", "").lower()
-                    if "pdf" in question_text or "document" in question_text or file_name.lower() in question_text:
-                        print(f"Warning: Question {i+1} mentions PDF/document: '{question_text}'")
+                # Validate and filter the MCQs
+                filtered_mcqs = []
+                for mcq in mcqs:
+                    question = mcq.get("question", "").lower()
+                    
+                    # Skip questions that mention PDF or filename
+                    if "pdf" in question or "document" in question or file_name.lower() in question:
+                        print(f"Skipping question that mentions PDF/document: '{mcq.get('question')}'")
+                        continue
+                        
+                    # Ensure the question has the required fields
+                    if "question" in mcq and "options" in mcq and "answer" in mcq:
+                        if len(mcq["options"]) == 4:  # Ensure we have exactly 4 options
+                            filtered_mcqs.append(mcq)
+                            
+                if not filtered_mcqs:
+                    # If all questions were filtered out, we have a problem
+                    raise HTTPException(status_code=500, 
+                                      detail="Generated questions did not meet quality standards")
                 
-                print(f"Successfully created {len(mcqs)} content-specific MCQs")
-                return mcqs
+                print(f"Successfully created {len(filtered_mcqs)} content-specific MCQs")
+                return filtered_mcqs
                 
             except json.JSONDecodeError as e:
                 print(f"JSON parse error: {e}")
                 print(f"Problematic JSON: {json_str[:100]}...")
-                raise HTTPException(status_code=500, detail=f"Failed to parse JSON: {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to parse JSON from API response")
             
     except httpx.HTTPStatusError as e:
         print(f"HTTP error: {e}")
+        if hasattr(e, 'response'):
+            print(f"Response: {e.response.text}")
         raise HTTPException(status_code=500, detail=f"Groq API error: {str(e)}")
     except Exception as e:
         print(f"Unexpected error: {e}")
@@ -184,7 +221,7 @@ async def upload_file(
 ):
     try:
         # Validate input
-        if pdf.content_type != "application/pdf":
+        if not pdf.filename.lower().endswith('.pdf'):
             raise HTTPException(status_code=400, detail="Uploaded file must be a PDF")
         
         if num_questions < 1 or num_questions > 20:
@@ -201,18 +238,16 @@ async def upload_file(
         
         print(f"PDF saved to {temp_path} - Size: {len(content)} bytes")
         
-        # Extract text from PDF
-        text = extract_text_from_pdf(temp_path)
-        if not text or len(text.strip()) < 50:
+        # Extract text from PDF or use fallback for image-based PDFs
+        try:
+            text = extract_text_from_pdf(temp_path)
+        except ValueError as e:
+            print(f"PDF text extraction issue: {e}")
             raise HTTPException(status_code=400, 
-                              detail="Could not extract sufficient text from the PDF. Please ensure it contains readable text.")
+                               detail="Could not extract sufficient text from your PDF. It appears to be an image-based or scanned document. Please upload a PDF with extractable text.")
         
-        print(f"Extracted {len(text)} characters of text from {pdf.filename}")
-        
-        # Generate MCQs from text using Groq API
-        # Now passing the filename as a parameter
+        # Generate MCQs from text using Groq API with more powerful model
         mcqs = await generate_mcqs_with_groq(text, pdf.filename, num_questions)
-        print(f"Generated {len(mcqs)} MCQs for {pdf.filename}")
         
         # Clean up
         try:
@@ -220,10 +255,8 @@ async def upload_file(
         except Exception as e:
             print(f"Error removing temp file: {str(e)}")
         
-        # Return the MCQs with some metadata
         return {
             "mcqs": mcqs,
-            "pdf_name": pdf.filename,
             "total_questions": len(mcqs)
         }
         
