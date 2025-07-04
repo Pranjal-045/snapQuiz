@@ -2,18 +2,14 @@ fastapi==0.100.0
 uvicorn==0.22.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
-PyPDF2==3.0.1
 pydantic==1.10.12
 
-langchain==0.0.292
-langchain-community==0.0.5
-langchain-groq==0.1.0
-langchain-core==0.1.0
-langsmith==0.0.53
-
-chromadb==0.4.13
-sentence-transformers==2.2.2
+PyPDF2==3.0.1
 pypdf==3.15.1
 
-torch==2.7.1
-tqdm==4.66.1
+sentence-transformers==2.2.2
+chromadb==0.4.13
+
+groq==0.29.0     # latest stable from Jun 2025
+
+torch           # omit version to install latest compatible (or pin to 2.7.1)
