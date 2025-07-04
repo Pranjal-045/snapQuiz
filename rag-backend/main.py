@@ -4,7 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.rag_pipeline import generate_mcqs
 import uvicorn
 
-app = FastAPI()
+app = FastAPI(
+    title="snapQuiz RAG API",
+    description="API for generating quiz questions from PDF documents",
+    version="1.0.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,12 +18,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add a root endpoint
+# Root endpoint - This resolves the 404 error at the root URL
 @app.get("/")
 async def root():
-    return {"message": "Welcome to snapQuiz RAG API", "status": "online"}
+    return {
+        "message": "Welcome to snapQuiz RAG API",
+        "status": "online",
+        "endpoints": [
+            {"path": "/", "method": "GET", "description": "This information"},
+            {"path": "/health", "method": "GET", "description": "Health check endpoint"},
+            {"path": "/upload", "method": "POST", "description": "Upload PDF and generate MCQs"}
+        ]
+    }
 
-# Add a health check endpoint
+# Health check endpoint
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
@@ -45,4 +57,11 @@ async def upload_file(
         return {"mcqs": mcqs}
 
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(error_details)  # Log the full error
         return {"error": str(e)}
+
+# Only run this when executing the file directly (not when imported)
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8000")), reload=True)
