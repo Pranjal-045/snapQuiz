@@ -3,9 +3,22 @@ uvicorn==0.22.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
 PyPDF2==3.0.1
-langchain==0.0.267
-langchain-community==0.0.10
-langchain-groq==0.1.1
-sentence-transformers==2.2.2
-chromadb==0.4.15
 pydantic==1.10.12
+
+# LangChain packages with compatible versions
+langchain==0.0.292
+langchain-community==0.0.5
+langchain-groq==0.1.0
+langchain-core==0.0.15
+langsmith==0.0.53
+
+# Vector database and embeddings
+chromadb==0.4.13
+sentence-transformers==2.2.2
+
+# PDF processing
+pypdf==3.15.1
+
+# Other dependencies
+torch==2.0.1
+tqdm==4.66.1
