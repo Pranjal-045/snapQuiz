@@ -1,13 +1,15 @@
-fastapi==0.109.2
-uvicorn==0.27.1
-python-multipart==0.0.9
-python-dotenv==1.0.1
+# Core API dependencies (pre-built wheels available)
+fastapi==0.95.2
+uvicorn==0.22.0
+python-multipart==0.0.6
+python-dotenv==1.0.0
+
+# Use Pydantic v1 which doesn't need Rust compilation
+pydantic==1.10.8
+
+# Direct API access instead of complex LangChain
+httpx==0.24.1
 PyPDF2==3.0.1
-pydantic==2.6.1
-langchain==0.1.0
-langchain-community==0.0.19
-langchain-groq==0.1.4
-langchain-core==0.1.15
-sentence-transformers==2.2.2
-chromadb==0.4.22
-torch
+
+# Optional - Only if your code can work without these
+# sentence-transformers and chromadb may have compilation issues
