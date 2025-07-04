@@ -9,7 +9,7 @@ function Home() {
     const formData = new FormData();
     formData.append("pdf", file);
 
-    const res = await axios.post("http://localhost:5000/upload", formData);
+    const res = await axios.post("process.env.REACT_APP_RAG_URL", formData);
     setMcqs(res.data.mcqs);
   };
 
