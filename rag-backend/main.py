@@ -66,7 +66,7 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         print(f"Error extracting text from PDF: {e}")
         raise HTTPException(status_code=500, detail=f"PDF extraction failed: {str(e)}")
 
-async def generate_mcqs_with_groq(text: str, num_questions: int = 5) -> List[Dict[str, Any]]:
+async def generate_mcqs_with_groq(text: str, file_name: str, num_questions: int = 5) -> List[Dict[str, Any]]:
     """Generate MCQs using the Groq API directly."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
@@ -78,43 +78,44 @@ async def generate_mcqs_with_groq(text: str, num_questions: int = 5) -> List[Dic
         print(f"Text is too long ({len(text)} chars), truncating to approximately {max_tokens} tokens")
         text = text[:max_tokens * 4]
     
-    # Enhanced prompt with stronger instruction to focus on the PDF content
+    # FIXED PROMPT: Explicitly instructs not to mention the filename in questions
+    # and focuses on the document content itself
     prompt = f"""
-    You are an expert quiz creator. I've provided text extracted from a PDF document. 
-    Your task is to create {num_questions} multiple choice questions (MCQs) that specifically test 
-    knowledge from this document content. Do NOT create generic questions.
+    You are creating a quiz based on the content of a document. 
     
-    Here's the document text:
-    ```
+    The following text was extracted from a document:
+    ---START OF DOCUMENT CONTENT---
     {text}
-    ```
+    ---END OF DOCUMENT CONTENT---
     
-    Create {num_questions} multiple-choice questions based ONLY on the information in this document. 
-    Each question should:
-    1. Test specific knowledge from the document
-    2. Have one correct answer and three plausible but incorrect answers
-    3. Cover different aspects of the document content
+    Create {num_questions} multiple-choice questions based ONLY on the specific information provided in the document text above.
     
-    Format the response as a JSON array exactly like this:
+    IMPORTANT INSTRUCTIONS:
+    1. DO NOT mention the filename or refer to "the PDF" or "the document" in any question or answer.
+    2. Questions should be about the specific content, facts, concepts, or information in the text.
+    3. Each question must have exactly 4 options (A, B, C, D) with only one correct answer.
+    4. Ensure questions are specific to this content, not generic.
+    5. Cover different topics from the document to test various aspects.
+    
+    Format the response EXACTLY as a JSON array like this:
     [
       {{
-        "question": "A specific question from the document text?",
+        "question": "Specific question about content?",
         "options": {{
-          "A": "Correct answer from the text",
-          "B": "Plausible but incorrect option",
-          "C": "Plausible but incorrect option",
-          "D": "Plausible but incorrect option"
+          "A": "Correct answer",
+          "B": "Wrong option",
+          "C": "Wrong option",
+          "D": "Wrong option"
         }},
         "answer": "A"
-      }},
-      ...more questions...
+      }}
     ]
     
-    Return ONLY the valid JSON array with the questions. Do not include any explanations or additional text.
+    RETURN ONLY THE JSON ARRAY. No introductions, explanations or other text.
     """
     
     try:
-        print(f"Sending request to Groq API with prompt length: {len(prompt)}")
+        print(f"Sending request to Groq API for document: {file_name}")
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -126,10 +127,10 @@ async def generate_mcqs_with_groq(text: str, num_questions: int = 5) -> List[Dic
                 json={
                     "model": "llama3-8b-8192",
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.2,  # Lower temperature for more focused results
-                    "max_tokens": 2000,  # Ensure enough tokens for response
+                    "temperature": 0.1,  # Very low temperature for more deterministic output
+                    "max_tokens": 2000,
                 },
-                timeout=90.0  # Longer timeout
+                timeout=120.0  # Longer timeout for complex PDFs
             )
             
             response.raise_for_status()
@@ -139,21 +140,31 @@ async def generate_mcqs_with_groq(text: str, num_questions: int = 5) -> List[Dic
                 raise HTTPException(status_code=500, detail="Invalid response from Groq API")
                 
             content = data["choices"][0]["message"]["content"]
-            print(f"Received response from Groq API: {len(content)} chars")
             
             # Extract JSON from the response
             json_start = content.find('[')
             json_end = content.rfind(']') + 1
             
             if json_start == -1 or json_end <= 0:
-                raise HTTPException(status_code=500, detail=f"Could not find valid JSON in API response. Response starts with: {content[:100]}...")
+                print("Failed to find JSON in response. Full response:")
+                print(content[:1000])  # Print part of response for debugging
+                raise HTTPException(status_code=500, detail="Could not find valid JSON in API response")
                 
             json_str = content[json_start:json_end]
             
             try:
                 mcqs = json.loads(json_str)
-                print(f"Successfully parsed JSON with {len(mcqs)} MCQs")
+                
+                # Validate the MCQs to ensure they follow our requirements
+                for i, mcq in enumerate(mcqs):
+                    # Check if the question mentions the filename or "pdf" or "document"
+                    question_text = mcq.get("question", "").lower()
+                    if "pdf" in question_text or "document" in question_text or file_name.lower() in question_text:
+                        print(f"Warning: Question {i+1} mentions PDF/document: '{question_text}'")
+                
+                print(f"Successfully created {len(mcqs)} content-specific MCQs")
                 return mcqs
+                
             except json.JSONDecodeError as e:
                 print(f"JSON parse error: {e}")
                 print(f"Problematic JSON: {json_str[:100]}...")
@@ -161,10 +172,7 @@ async def generate_mcqs_with_groq(text: str, num_questions: int = 5) -> List[Dic
             
     except httpx.HTTPStatusError as e:
         print(f"HTTP error: {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            print(f"Response: {e.response.text}")
-        raise HTTPException(status_code=e.response.status_code if hasattr(e, 'response') else 500, 
-                           detail=f"Groq API error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Groq API error: {str(e)}")
     except Exception as e:
         print(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=f"Error calling Groq API: {str(e)}")
@@ -202,20 +210,19 @@ async def upload_file(
         print(f"Extracted {len(text)} characters of text from {pdf.filename}")
         
         # Generate MCQs from text using Groq API
-        mcqs = await generate_mcqs_with_groq(text, num_questions)
+        # Now passing the filename as a parameter
+        mcqs = await generate_mcqs_with_groq(text, pdf.filename, num_questions)
         print(f"Generated {len(mcqs)} MCQs for {pdf.filename}")
         
         # Clean up
         try:
             os.unlink(temp_path)
-            print(f"Removed temporary file {temp_path}")
         except Exception as e:
             print(f"Error removing temp file: {str(e)}")
         
-        # Return example of the first question for verification
+        # Return the MCQs with some metadata
         return {
             "mcqs": mcqs,
-            "extracted_text_sample": text[:200] + "..." if len(text) > 200 else text,
             "pdf_name": pdf.filename,
             "total_questions": len(mcqs)
         }
