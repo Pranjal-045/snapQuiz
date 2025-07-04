@@ -281,7 +281,7 @@ function App() {
       // Try API call and handle errors gracefully
       let mcqsData = [];
       try {
-        const res = await axios.post("http://localhost:5000/upload", formData, {
+        const res = await axios.post("process.env.REACT_APP_RAG_URL", formData, {
           headers: {
             ...headers,
             'Cache-Control': 'no-cache',
