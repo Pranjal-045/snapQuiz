@@ -1,19 +1,13 @@
-# Core dependencies - Python 3.13 compatible
-fastapi>=0.104.0
-uvicorn>=0.24.0
-python-multipart>=0.0.7
-python-dotenv>=1.0.0
-
-# PDF processing
-PyPDF2>=3.0.1
-pypdf>=3.15.1
-
-# API 
-httpx>=0.25.0
-
-# Direct Groq API integration (simpler than using LangChain)
-groq>=0.4.1
-
-# Vector DB and embeddings
-sentence-transformers>=2.2.2
-chromadb>=0.4.18
+fastapi==0.109.2
+uvicorn==0.27.1
+python-multipart==0.0.9
+python-dotenv==1.0.1
+PyPDF2==3.0.1
+pydantic==2.6.1
+langchain==0.1.0
+langchain-community==0.0.19
+langchain-groq==0.1.4
+langchain-core==0.1.15
+sentence-transformers==2.2.2
+chromadb==0.4.22
+torch
