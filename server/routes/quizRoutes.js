@@ -103,7 +103,7 @@ router.post('/upload', protect, upload.single('pdf'), async (req, res) => {
     
     // Call the Python backend to generate MCQs
     const pythonResponse = await axios.post(
-      'process.env.REACT_APP_RAG_URL',  // Your rag-backend URL
+      'process.env.REACT_APP_RAG_URL'/upload,  // Your rag-backend URL
       formData,
       {
         headers: {
