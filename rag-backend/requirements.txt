@@ -5,10 +5,8 @@ python-dotenv==1.0.0
 PyPDF2==3.0.1
 transformers==4.30.2
 torch==2.0.1
-langchain
-openai
-PyPDF
-sentence-transformers
-chromadb
-langchain-community
-langchain_groq
+langchain==0.0.312
+langchain-community==0.0.18
+langchain-groq==0.0.8
+sentence-transformers==2.2.2
+chromadb==0.4.22
