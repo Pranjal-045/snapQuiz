@@ -1,7 +1,7 @@
 import os
 import json
 import tempfile
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import httpx
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -30,21 +30,13 @@ app.add_middleware(
 async def root():
     return {
         "message": "Welcome to snapQuiz RAG API",
-        "status": "online",
-        "endpoints": [
-            {"path": "/", "method": "GET", "description": "API information"},
-            {"path": "/health", "method": "GET", "description": "Health check endpoint"},
-            {"path": "/upload", "method": "POST", "description": "Upload PDF and generate MCQs"}
-        ]
+        "status": "online"
     }
 
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "api_key": "Available" if os.getenv("GROQ_API_KEY") else "Missing"
-    }
+    return {"status": "healthy", "api_key": "Available" if os.getenv("GROQ_API_KEY") else "Missing"}
 
 def extract_text_from_pdf(pdf_path: str) -> str:
     """Extract text from a PDF file."""
@@ -149,14 +141,12 @@ async def upload_file(
         # Clean up
         try:
             os.unlink(temp_path)
-            print(f"Removed temporary file {temp_path}")
         except Exception as e:
             print(f"Error removing temp file: {str(e)}")
         
         return {"mcqs": mcqs}
         
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except Exception as e:
         import traceback
@@ -167,4 +157,4 @@ async def upload_file(
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
