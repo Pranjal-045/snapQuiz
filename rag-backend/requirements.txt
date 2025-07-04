@@ -9,7 +9,7 @@ pydantic==1.10.12
 langchain==0.0.292
 langchain-community==0.0.5
 langchain-groq==0.1.0
-langchain-core==0.0.15
+langchain-core==0.1.0
 langsmith==0.0.53
 
 # Vector database and embeddings
