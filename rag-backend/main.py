@@ -6,9 +6,10 @@ import uvicorn
 
 app = FastAPI()
 
+# In main.py
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can restrict this in production
+    allow_origins=[os.getenv("CLIENT_URL", "*"), os.getenv("NODE_BACKEND_URL", "*")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
