@@ -282,7 +282,7 @@ function App() {
       let mcqsData = [];
       try {
         // FIXED: Properly using environment variable with template literals
-        const res = await axios.post(`${process.env.REACT_APP_RAG_URL}/upload`, formData, {
+        const res = await axios.post(`${import.meta.env.VITE_RAG_URL}/upload`, formData, {
           headers: {
             ...headers,
             'Cache-Control': 'no-cache',
