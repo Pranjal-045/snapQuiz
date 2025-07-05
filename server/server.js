@@ -14,23 +14,31 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // Middleware
+// REPLACE YOUR EXISTING CORS CONFIGURATION WITH THIS:
+// This will allow all Vercel deployments for your project
 app.use(cors({
-  // Explicitly list allowed origins
-  origin: [
-    'https://snapquiz-hthqzphsl-pranjal-077s-projects.vercel.app',
-    'https://snapquiz-node-backend.onrender.com',
-    'http://localhost:5173', // For local development
-    'http://localhost:3000'  // For local development
-  ],
-  // Allow credentials
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow all Vercel deployments for your project
+    if (origin.endsWith('pranjal-077s-projects.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Allow localhost for development
+    if (origin.match(/http:\/\/localhost:[0-9]+/)) {
+      return callback(null, true);
+    }
+    
+    // Otherwise, block the request
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
-  // Specify which methods to allow
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  // Allow these headers
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  // Cache preflight for 1 hour (3600 seconds)
-  maxAge: 3600
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
 app.use(bodyParser.json());
 
