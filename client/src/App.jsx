@@ -2125,9 +2125,6 @@ Current User's Login: ${user?.username || 'Guest User'}`;
     SnapQuiz • Created by Pranjal-045
   </p>
   <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-    Current Date and Time (UTC): {formattedDateTime}
-  </p>
-  <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
     Current User's Login: {user?.username || 'Guest User'}
   </p>
 </footer>
