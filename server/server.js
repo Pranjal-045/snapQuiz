@@ -15,11 +15,22 @@ const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(cors({
+  // FIXED: Allow requests from any origin during development
   origin: process.env.CLIENT_URL || '*',
   credentials: true
 }));
 app.use(express.json());
 app.use(bodyParser.json());
+
+// Better logging for debugging registration issues
+app.use((req, res, next) => {
+  // Log all requests with method, path, and timestamp
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  if (req.path === '/register' || req.path === '/api/register') {
+    console.log('Registration attempt received');
+  }
+  next();
+});
 
 // Create uploads directory
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -28,13 +39,43 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Connect to MongoDB - using a single consistent connection string
+// Connect to MongoDB with error handling
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/quiz_app', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB Connected'))
-.catch(err => console.error('MongoDB Connection Error:', err));
+.then(() => {
+  console.log('MongoDB Connected Successfully!');
+  
+  // Test ping to verify connection
+  return mongoose.connection.db.admin().ping();
+})
+.then(() => {
+  console.log('Database ping successful - connection is fully operational');
+})
+.catch(err => {
+  console.error('❌ MongoDB Connection Error:', err.message);
+  
+  // More detailed error info
+  if (err.name === 'MongoNetworkError') {
+    console.error('Network issue - check your connection string or firewall settings');
+  } else if (err.name === 'MongoServerSelectionError') {
+    console.error('Server selection timeout - cluster might be down or unreachable');
+  }
+});
+
+// MongoDB connection event listeners
+mongoose.connection.on('error', err => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB disconnected');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('MongoDB reconnected');
+});
 
 // Define mongoose schemas
 // User model
@@ -87,12 +128,14 @@ const auth = async (req, res, next) => {
     
     next();
   } catch (error) {
+    console.error('Auth middleware error:', error.message);
     res.status(401).json({ message: 'Token is not valid' });
   }
 };
 
-// Authentication routes
-app.post('/api/register', async (req, res) => {
+// FIXED: Route prefix handling - support both /api/register and /register paths
+// Authentication routes - added detailed logging
+app.post(['/api/register', '/register'], async (req, res) => {
   try {
     const { username, email, password } = req.body;
     console.log(`Registration attempt for: ${username}, ${email}`);
@@ -139,7 +182,8 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.post('/api/login', async (req, res) => {
+// FIXED: Login route supporting both /api/login and /login paths
+app.post(['/api/login', '/login'], async (req, res) => {
   try {
     const { username, password } = req.body;
     console.log(`Login attempt for: ${username}`);
@@ -183,13 +227,13 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Protected route to get current user
-app.get('/api/me', auth, async (req, res) => {
+// Protected routes - support both paths
+app.get(['/api/me', '/me'], auth, async (req, res) => {
   res.json(req.user);
 });
 
-// Quiz result routes
-app.post('/api/quiz-result', auth, async (req, res) => {
+// Quiz result routes with both path patterns
+app.post(['/api/quiz-result', '/quiz-result'], auth, async (req, res) => {
   try {
     const { quizId, title, numQuestions, correctAnswers, totalQuestions, timeTaken, questions, userAnswers } = req.body;
     
@@ -206,6 +250,7 @@ app.post('/api/quiz-result', auth, async (req, res) => {
     });
     
     await quizResult.save();
+    console.log(`Quiz result saved for user: ${req.user.username}, score: ${correctAnswers}/${totalQuestions}`);
     
     res.status(201).json(quizResult);
   } catch (error) {
@@ -214,7 +259,7 @@ app.post('/api/quiz-result', auth, async (req, res) => {
   }
 });
 
-app.get('/api/quiz-history', auth, async (req, res) => {
+app.get(['/api/quiz-history', '/quiz-history'], auth, async (req, res) => {
   try {
     const quizResults = await QuizResult.find({ userId: req.user.id }).sort({ createdAt: -1 });
     
@@ -238,7 +283,7 @@ app.get('/api/quiz-history', auth, async (req, res) => {
   }
 });
 
-app.delete('/api/quiz-history/:id', auth, async (req, res) => {
+app.delete(['/api/quiz-history/:id', '/quiz-history/:id'], auth, async (req, res) => {
   try {
     const quizId = req.params.id;
     
@@ -258,7 +303,7 @@ app.delete('/api/quiz-history/:id', auth, async (req, res) => {
   }
 });
 
-app.delete('/api/quiz-history', auth, async (req, res) => {
+app.delete(['/api/quiz-history', '/quiz-history'], auth, async (req, res) => {
   try {
     const result = await QuizResult.deleteMany({ userId: req.user.id });
     
@@ -269,8 +314,55 @@ app.delete('/api/quiz-history', auth, async (req, res) => {
   }
 });
 
+// Database test route - helpful for checking connectivity
+app.get('/api/test-db-connection', async (req, res) => {
+  try {
+    // Check connection state
+    const state = mongoose.connection.readyState;
+    const states = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    };
+    
+    // Try to perform a simple operation
+    const dbPing = await mongoose.connection.db.admin().ping();
+    
+    // If User model exists, try counting users
+    let userCount = null;
+    try {
+      userCount = await User.countDocuments();
+    } catch (err) {
+      console.log('User collection may not exist yet');
+    }
+    
+    res.json({
+      success: true,
+      connection: {
+        state: states[state],
+        status: state === 1 ? 'healthy' : 'unhealthy'
+      },
+      ping: dbPing,
+      diagnostics: {
+        userCount
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: {
+        name: error.name,
+        code: error.code
+      }
+    });
+  }
+});
+
 // Helper route to get current UTC time in the required format
-app.get('/api/current-time', (req, res) => {
+app.get(['/api/current-time', '/current-time'], (req, res) => {
   const now = new Date();
   
   // Format date as YYYY-MM-DD HH:MM:SS (UTC)
