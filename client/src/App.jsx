@@ -17,6 +17,9 @@ function App() {
     return saved === "true" ? true : false;
   });
 
+  // API URL configuration
+  const API_BASE_URL = 'http://localhost:5001/api';
+
   // Progress tracking states
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingStage, setProcessingStage] = useState("");
@@ -191,21 +194,40 @@ function App() {
   
   // Check if user is logged in and close history panel on reload
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    // Close history panel on reload
-    setShowHistory(false);
-    
-    if (storedToken && storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-      } catch (e) {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+    const checkAuth = async () => {
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      // Close history panel on reload
+      setShowHistory(false);
+      
+      if (storedToken && storedUser) {
+        try {
+          // Verify token is valid with server
+          const response = await fetch(`${API_BASE_URL}/me`, {
+            headers: {
+              'Authorization': `Bearer ${storedToken}`
+            }
+          });
+          
+          if (response.ok) {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+            console.log("User authenticated from stored token");
+          } else {
+            // Token invalid - clear storage
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
+        } catch (e) {
+          console.error("Auth verification error:", e);
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+        }
       }
-    }
+    };
+    
+    checkAuth();
   }, []);
 
   // Mock quiz history data setup
@@ -479,11 +501,36 @@ function App() {
         user_answers: selectedOptions
       };
       
-      // Get existing quiz history
-      const savedQuizzes = JSON.parse(localStorage.getItem('quizHistory') || '[]');
-      savedQuizzes.push(quizFullData);
-      localStorage.setItem('quizHistory', JSON.stringify(savedQuizzes));
-      
+      if (token && userId) {
+        // Save to backend
+        try {
+          const response = await fetch(`${API_BASE_URL}/quiz-result`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(quizFullData)
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to save quiz result to server');
+          }
+          
+          console.log('Quiz result saved to server');
+        } catch (apiError) {
+          console.error('Error saving to API, falling back to localStorage:', apiError);
+          // Fall back to localStorage if API fails
+          const savedQuizzes = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+          savedQuizzes.push(quizFullData);
+          localStorage.setItem('quizHistory', JSON.stringify(savedQuizzes));
+        }
+      } else {
+        // No auth token, just save to localStorage
+        const savedQuizzes = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+        savedQuizzes.push(quizFullData);
+        localStorage.setItem('quizHistory', JSON.stringify(savedQuizzes));
+      }
     } catch (error) {
       console.error("Error saving quiz result:", error);
     }
@@ -504,72 +551,47 @@ function App() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    const username = e.target.elements[0].value;
-    const password = e.target.elements[1].value;
+    setLoading(true);
+    setAuthError("");
     
     try {
-      setLoading(true);
-      setAuthError("");
+      const username = e.target.elements[0].value;
+      const password = e.target.elements[1].value;
       
-      await new Promise(resolve => setTimeout(resolve, 800));
+      console.log("Attempting to login with:", username);
       
-      const storedUsers = JSON.parse(localStorage.getItem('mcq_users') || '[]');
-      
-      if (storedUsers.length === 0 && username === 'user' && password === 'password') {
-        const defaultUser = {
-          id: 'user123',
-          username: 'user',
-          email: 'user@example.com'
-        };
-        
-        localStorage.setItem('mcq_users', JSON.stringify([
-          {
-            id: 'user123',
-            username: 'user',
-            email: 'user@example.com',
-            password: 'password'
-          }
-        ]));
-        
-        const mockToken = 'mock_token_' + Math.random().toString(36).substring(2);
-        localStorage.setItem('token', mockToken);
-        localStorage.setItem('user', JSON.stringify(defaultUser));
-        setUser(defaultUser);
-        setShowAuthModal(false);
-        return;
-      }
-      
-      const user = storedUsers.find(u => u.username === username && u.password === password);
-      if (!user) {
-        setAuthError("Invalid username or password");
-        return;
-      }
-      
-      const mockToken = 'mock_token_' + Math.random().toString(36).substring(2);
-      
-      localStorage.setItem('token', mockToken);
-      localStorage.setItem('user', JSON.stringify({
-        id: user.id,
-        username: user.username,
-        email: user.email
-      }));
-      
-      setUser({
-        id: user.id,
-        username: user.username,
-        email: user.email
+      // Use the backend API endpoint for login
+      const response = await fetch(`${API_BASE_URL}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
       });
       
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+      
+      // Store token and user data from the response
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Update user state
+      setUser(data.user);
       setShowAuthModal(false);
+      
+      console.log("Login successful");
       
       if (showHistory) {
         setShowHistory(false);
         setTimeout(() => setShowHistory(true), 100);
       }
-      
     } catch (error) {
-      console.error('Login error:', error);
-      setAuthError("An error occurred during login");
+      console.error("Login error:", error);
+      setAuthError(error.message || 'Invalid username or password');
     } finally {
       setLoading(false);
     }
@@ -591,81 +613,134 @@ function App() {
         return;
       }
       
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const storedUsers = JSON.parse(localStorage.getItem('mcq_users') || '[]');
-      
-      if (storedUsers.some(user => user.username === username || user.email === email)) {
-        setAuthError("Username or email already exists");
-        return;
-      }
-      
-      const newUser = {
-        id: Date.now().toString(),
-        username: username,
-        email: email,
-        password: password
-      };
-      
-      storedUsers.push(newUser);
-      localStorage.setItem('mcq_users', JSON.stringify(storedUsers));
-      
-      const mockToken = 'mock_token_' + Math.random().toString(36).substring(2);
-      
-      localStorage.setItem('token', mockToken);
-      localStorage.setItem('user', JSON.stringify({
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email
-      }));
-      
-      setUser({
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email
+      // Use the backend API endpoint for registration
+      const response = await fetch(`${API_BASE_URL}/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, email, password }),
       });
       
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+      
+      // Store token and user data from the response
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Update user state
+      setUser(data.user);
       setShowAuthModal(false);
       
     } catch (error) {
       console.error('Registration error:', error);
-      setAuthError("An error occurred during registration");
+      setAuthError(error.message || "An error occurred during registration");
     } finally {
       setLoading(false);
     }
   };
   
-  const handleDeleteQuiz = (quizId) => {
+  const handleDeleteQuiz = async (quizId) => {
     try {
-      const userData = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = userData.id;
+      const token = localStorage.getItem('token');
       
-      const quizHistory = JSON.parse(localStorage.getItem('quizHistory') || '[]');
-      
-      const updatedHistory = quizHistory.filter(quiz => 
-        !(quiz.id === quizId && (!quiz.userId || quiz.userId === userId))
-      );
-      
-      localStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
-      
+      if (token) {
+        // Try to delete from the server first
+        try {
+          const response = await fetch(`${API_BASE_URL}/quiz-history/${quizId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to delete from server');
+          }
+          
+          console.log('Quiz deleted from server');
+        } catch (apiError) {
+          console.error('Error deleting from API, falling back to localStorage:', apiError);
+          // Fall back to localStorage
+          const userData = JSON.parse(localStorage.getItem('user') || '{}');
+          const userId = userData.id;
+          
+          const quizHistory = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+          
+          const updatedHistory = quizHistory.filter(quiz => 
+            !(quiz.id === quizId && (!quiz.userId || quiz.userId === userId))
+          );
+          
+          localStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
+        }
+      } else {
+        // No token, just update localStorage
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = userData.id;
+        
+        const quizHistory = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+        
+        const updatedHistory = quizHistory.filter(quiz => 
+          !(quiz.id === quizId && (!quiz.userId || quiz.userId === userId))
+        );
+        
+        localStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
+      }
     } catch (error) {
       console.error("Error deleting quiz:", error);
     }
   };
 
-  const handleClearAllQuizzes = () => {
+  const handleClearAllQuizzes = async () => {
     try {
-      const userData = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = userData.id;
+      const token = localStorage.getItem('token');
       
-      const quizHistory = JSON.parse(localStorage.getItem('quizHistory') || '[]');
-      
-      const updatedHistory = quizHistory.filter(quiz => 
-        quiz.userId && quiz.userId !== userId
-      );
-      
-      localStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
-      
+      if (token) {
+        // Try to clear all from server first
+        try {
+          const response = await fetch(`${API_BASE_URL}/quiz-history`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to clear history from server');
+          }
+          
+          console.log('Quiz history cleared from server');
+        } catch (apiError) {
+          console.error('Error clearing from API, falling back to localStorage:', apiError);
+          // Fall back to localStorage
+          const userData = JSON.parse(localStorage.getItem('user') || '{}');
+          const userId = userData.id;
+          
+          const quizHistory = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+          
+          const updatedHistory = quizHistory.filter(quiz => 
+            quiz.userId && quiz.userId !== userId
+          );
+          
+          localStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
+        }
+      } else {
+        // No token, just update localStorage
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = userData.id;
+        
+        const quizHistory = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+        
+        const updatedHistory = quizHistory.filter(quiz => 
+          quiz.userId && quiz.userId !== userId
+        );
+        
+        localStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
+      }
     } catch (error) {
       console.error("Error clearing quiz history:", error);
     }
@@ -1214,7 +1289,7 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                         URL.revokeObjectURL(url);
                       }}
                       className="py-2 px-3 rounded-full text-sm font-medium transition flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white active:transform active:scale-95"
-                    >
+                                        >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
@@ -1330,10 +1405,10 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                   {/* User info with updated date time format */}
                   <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                     <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Current User: Pranjal-0451
+                      Current User: {user?.username || 'Guest User'}
                     </div>
                     <div className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      2025-07-05 04:02:48
+                      {formattedDateTime}
                     </div>
                   </div>
                 </div>
@@ -1361,7 +1436,7 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                     
                     <button 
                       onClick={() => currentPage < mcqs.length - 1 && setCurrentPage(currentPage + 1)}
-                                            className={`flex items-center text-sm ${
+                      className={`flex items-center text-sm ${
                         darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
                       } ${currentPage === mcqs.length - 1 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                       disabled={currentPage === mcqs.length - 1}
@@ -1988,8 +2063,6 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                   </button>
                 </form>
               )}
-              
-              {/* Removed default credentials section as requested */}
             </div>
           </div>
         )}
@@ -2038,10 +2111,10 @@ Current User's Login: ${user?.username || 'Guest User'}`;
             SnapQuiz • Created by Pranjal-045
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-            Current Date and Time (UTC): 2025-07-05 04:15:54
+            Current Date and Time (UTC): 2025-07-05 05:17:39
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-            Current User's Login: Pranjal-045
+            Current User's Login: {user?.username || 'Guest User'}
           </p>
         </footer>
       </div>
