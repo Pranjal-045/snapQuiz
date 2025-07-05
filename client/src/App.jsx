@@ -43,7 +43,7 @@ function App() {
   // State to determine if we're in mobile view
   const [isMobileView, setIsMobileView] = useState(false);
 
-  const [formattedDateTime, setFormattedDateTime] = useState('2025-07-05 03:42:00');
+  const [formattedDateTime, setFormattedDateTime] = useState('2025-07-05 04:02:48');
   const [showSidebar, setShowSidebar] = useState(false); // For mobile sidebar toggle
 
   // Timer state
@@ -118,7 +118,7 @@ function App() {
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [darkMode]);
+  }, []);
   
   // Update current time every second
   useEffect(() => {
@@ -446,6 +446,16 @@ function App() {
     saveQuizResult();
   };
 
+  const handleSubmitQuiz = () => {
+    const newShowAnswers = {};
+    mcqs.forEach((_, index) => {
+      newShowAnswers[index] = true;
+    });
+    setShowAnswers(newShowAnswers);
+    saveQuizResult();
+    alert("Quiz submitted successfully!");
+  };
+
   const saveQuizResult = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -477,6 +487,19 @@ function App() {
     } catch (error) {
       console.error("Error saving quiz result:", error);
     }
+  };
+  
+  // Reset to home page
+  const goToHome = () => {
+    setMcqs([]);
+    setFile(null);
+    setFileName("");
+    setSelectedOptions({});
+    setShowAnswers({});
+    setCurrentPage(0);
+    setQuizStartTime(null);
+    setQuizId(null);
+    localStorage.removeItem('appState');
   };
 
   const handleLogin = async (e) => {
@@ -749,7 +772,10 @@ function App() {
       <div className={`mx-auto px-4 py-3 ${isMobileView ? 'max-w-md' : 'max-w-7xl'} w-full flex flex-col flex-grow ${!isQuizComplete && mcqs.length > 0 ? 'h-full' : ''}`}>
         {/* Header with updated app name to SnapQuiz */}
         <header className="flex flex-col lg:flex-row justify-between items-center mb-3">
-          <h1 className={`text-xl md:text-2xl font-bold text-white mb-2 md:mb-0 ${isMobileView ? 'text-center' : ''}`}>
+          <h1 
+            onClick={goToHome}
+            className={`text-xl md:text-2xl font-bold text-white mb-2 md:mb-0 ${isMobileView ? 'text-center' : ''} cursor-pointer hover:text-purple-200 transition-colors`}
+          >
             SnapQuiz
           </h1>
           
@@ -850,14 +876,11 @@ function App() {
             {mcqs.length === 0 ? (
               // Landing page content with updated app name
               <div className={`rounded-3xl shadow-xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 flex-grow flex flex-col`}>
-                {/* Landing Page Description */}
+                {/* Landing Page Description - Removed detailed text */}
                 <div className="mb-4">
                   <h1 className={`text-xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-purple-800'}`}>
                     Welcome to SnapQuiz
                   </h1>
-                  <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Quickly create, practice, and track multiple-choice quizzes from any PDF study material. Upload your document, let our AI generate questions, and enhance your learning experience with instant feedback, hints, scoring, and history — all in a modern, responsive interface.
-                  </p>
                 </div>
                 
                 <h2 className={`text-lg font-semibold mb-3 ${darkMode ? 'text-white' : 'text-purple-800'}`}>Upload Document</h2>
@@ -1307,10 +1330,10 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                   {/* User info with updated date time format */}
                   <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                     <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Current User: {user?.username || 'Guest User'}
+                      Current User: Pranjal-0451
                     </div>
                     <div className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {formattedDateTime}
+                      2025-07-05 04:02:48
                     </div>
                   </div>
                 </div>
@@ -1428,38 +1451,50 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                       {Object.keys(selectedOptions).length} of {mcqs.length} questions answered
                     </div>
                     
-                    <button
-                      onClick={() => {
-                        // Show answer for current question
-                        setShowAnswers((prev) => ({ ...prev, [currentPage]: true }));
-                        
-                        // If this is the last question or all questions are answered, finish quiz
-                        if (currentPage === mcqs.length - 1 || Object.keys(selectedOptions).length === mcqs.length) {
-                          // Mark all questions as reviewed for the final score
-                          const newShowAnswers = {};
-                          mcqs.forEach((_, index) => {
-                            newShowAnswers[index] = true;
-                          });
-                          setShowAnswers(newShowAnswers);
-                          saveQuizResult();
-                        } else {
-                          // Otherwise, move to next question
-                          setCurrentPage(currentPage + 1);
-                        }
-                      }}
-                      className={`py-2 px-6 rounded text-white font-medium transition-colors duration-200 ${
-                        !selected 
-                          ? darkMode 
-                            ? 'bg-gray-600 cursor-not-allowed' 
-                            : 'bg-gray-400 cursor-not-allowed'
-                          : darkMode 
-                            ? 'bg-purple-600 hover:bg-purple-700' 
-                            : 'bg-purple-600 hover:bg-purple-700'
-                      } active:transform active:scale-95`}
-                      disabled={!selected}
-                    >
-                      {show ? 'Next Question' : 'Submit Answer'}
-                    </button>
+                    <div className="flex gap-2">
+                      {/* Added Submit Quiz button */}
+                      <button
+                        onClick={handleSubmitQuiz}
+                        className={`py-2 px-6 rounded text-white font-medium transition-colors duration-200 
+                          ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} 
+                          active:transform active:scale-95`}
+                      >
+                        Submit Quiz
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          // Show answer for current question
+                          setShowAnswers((prev) => ({ ...prev, [currentPage]: true }));
+                          
+                          // If this is the last question or all questions are answered, finish quiz
+                          if (currentPage === mcqs.length - 1 || Object.keys(selectedOptions).length === mcqs.length) {
+                            // Mark all questions as reviewed for the final score
+                            const newShowAnswers = {};
+                            mcqs.forEach((_, index) => {
+                              newShowAnswers[index] = true;
+                            });
+                            setShowAnswers(newShowAnswers);
+                            saveQuizResult();
+                          } else {
+                            // Otherwise, move to next question
+                            setCurrentPage(currentPage + 1);
+                          }
+                        }}
+                        className={`py-2 px-6 rounded text-white font-medium transition-colors duration-200 ${
+                          !selected 
+                            ? darkMode 
+                              ? 'bg-gray-600 cursor-not-allowed' 
+                              : 'bg-gray-400 cursor-not-allowed'
+                            : darkMode 
+                              ? 'bg-purple-600 hover:bg-purple-700' 
+                              : 'bg-purple-600 hover:bg-purple-700'
+                        } active:transform active:scale-95`}
+                        disabled={!selected}
+                      >
+                        {show ? 'Next Question' : 'Submit Answer'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1719,29 +1754,42 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                     })}
                   </div>
                   
-                  {/* Next button - at the bottom of the container */}
-                  <button
-                    onClick={() => {
-                      if (currentPage < mcqs.length - 1) {
-                        setCurrentPage(currentPage + 1);
-                      } else {
-                        // Mark all questions as reviewed for the final score
-                        const newShowAnswers = {};
-                        mcqs.forEach((_, index) => {
-                          newShowAnswers[index] = true;
-                        });
-                        setShowAnswers(newShowAnswers);
-                        saveQuizResult();
-                      }
-                    }}
-                    className={`w-full py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
-                      darkMode 
-                        ? 'bg-orange-600 hover:bg-orange-700' 
-                        : 'bg-purple-600 hover:bg-purple-700'
-                    } mt-4`}
-                  >
-                    {currentPage < mcqs.length - 1 ? 'Next' : 'Finish'}
-                  </button>
+                  {/* Mobile buttons - Added Submit Quiz button */}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={handleSubmitQuiz}
+                      className={`flex-1 py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
+                        darkMode 
+                          ? 'bg-blue-600 hover:bg-blue-700' 
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      Submit Quiz
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        if (currentPage < mcqs.length - 1) {
+                          setCurrentPage(currentPage + 1);
+                        } else {
+                          // Mark all questions as reviewed for the final score
+                          const newShowAnswers = {};
+                          mcqs.forEach((_, index) => {
+                            newShowAnswers[index] = true;
+                          });
+                          setShowAnswers(newShowAnswers);
+                          saveQuizResult();
+                        }
+                      }}
+                      className={`flex-1 py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
+                        darkMode 
+                          ? 'bg-orange-600 hover:bg-orange-700' 
+                          : 'bg-purple-600 hover:bg-purple-700'
+                      }`}
+                    >
+                      {currentPage < mcqs.length - 1 ? 'Next' : 'Finish'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1990,7 +2038,7 @@ Current User's Login: ${user?.username || 'Guest User'}`;
             SnapQuiz • Created by Pranjal-045
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-            Current Date and Time (UTC): 2025-07-05 03:48:30
+            Current Date and Time (UTC): 2025-07-05 04:15:54
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
             Current User's Login: Pranjal-045
