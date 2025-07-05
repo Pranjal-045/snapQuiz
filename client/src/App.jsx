@@ -281,7 +281,8 @@ function App() {
       // Try API call and handle errors gracefully
       let mcqsData = [];
       try {
-        const res = await axios.post("process.env.REACT_APP_RAG_URL"/upload, formData, {
+        // FIXED: Properly using environment variable with template literals
+        const res = await axios.post(`${process.env.REACT_APP_RAG_URL}/upload`, formData, {
           headers: {
             ...headers,
             'Cache-Control': 'no-cache',
@@ -1152,9 +1153,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
                       New Quiz
-                    </button>
-
-                    <button
+                    </button>                    <button
                       onClick={() => {
                         setSelectedOptions({});
                         setShowAnswers({});
@@ -1329,7 +1328,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                             <div className={`w-5 h-5 rounded-full border mr-3 flex items-center justify-center ${
                               isSelected 
                                 ? darkMode 
-                                                                    ? 'border-purple-500 bg-purple-500' 
+                                  ? 'border-purple-500 bg-purple-500' 
                                   : 'border-purple-600 bg-purple-600' 
                                 : darkMode
                                   ? 'border-gray-600' 
@@ -1884,7 +1883,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                   <p className="font-medium mt-1">Username: Pranjal-045</p>
                   <p className="font-medium">Password: password123</p>
                   <p className={`mt-1 text-xs ${darkMode ? "text-gray-500" : "text-gray-500"}`}>
-                    Current Date and Time (UTC): 2025-07-03 10:38:00
+                    Current Date and Time (UTC): 2025-07-05 03:16:09
                   </p>
                 </div>
               )}
@@ -1936,7 +1935,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
             SnapQuiz • Created by Pranjal-045
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-            Current Date and Time (UTC): 2025-07-03 10:38:00
+            Current Date and Time (UTC): 2025-07-05 03:16:09
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
             Current User's Login: Pranjal-045
