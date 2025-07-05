@@ -17,9 +17,9 @@ function App() {
     return saved === "true" ? true : false;
   });
 
-  // API URL configuration
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-
+  // API URL configuration - FIXED: Removed trailing /api to be consistent
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://snapquiz-node-backend.onrender.com';
+  
   // Progress tracking states
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingStage, setProcessingStage] = useState("");
@@ -121,7 +121,7 @@ function App() {
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, []);
+  }, [darkMode]); // FIXED: Added darkMode as dependency
   
   // Update current time every second
   useEffect(() => {
@@ -203,8 +203,8 @@ function App() {
       
       if (storedToken && storedUser) {
         try {
-          // Verify token is valid with server
-          const response = await fetch(`${API_BASE_URL}/me`, {
+          // Verify token is valid with server - FIXED: Added /api to endpoint
+          const response = await fetch(`${API_BASE_URL}/api/me`, {
             headers: {
               'Authorization': `Bearer ${storedToken}`
             }
@@ -228,7 +228,7 @@ function App() {
     };
     
     checkAuth();
-  }, []);
+  }, [API_BASE_URL]);
 
   // Mock quiz history data setup
   useEffect(() => {
@@ -502,9 +502,9 @@ function App() {
       };
       
       if (token && userId) {
-        // Save to backend
+        // Save to backend - FIXED: Added /api to endpoint
         try {
-          const response = await fetch(`${API_BASE_URL}/quiz-result`, {
+          const response = await fetch(`${API_BASE_URL}/api/quiz-result`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -560,8 +560,8 @@ function App() {
       
       console.log("Attempting to login with:", username);
       
-      // Use the backend API endpoint for login
-      const response = await fetch(`${API_BASE_URL}/login`, {
+      // FIXED: Added /api to endpoint
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -613,8 +613,9 @@ function App() {
         return;
       }
       
-      // Use the backend API endpoint for registration
-      const response = await fetch(`${API_BASE_URL}/register`, {
+      // FIXED: Added /api to endpoint
+      console.log(`Attempting to register with ${API_BASE_URL}/api/register`);
+      const response = await fetch(`${API_BASE_URL}/api/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -622,11 +623,15 @@ function App() {
         body: JSON.stringify({ username, email, password }),
       });
       
-      const data = await response.json();
-      
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+        // Get detailed error message from response
+        const errorData = await response.json();
+        console.error("Registration failed with status:", response.status);
+        throw new Error(errorData.message || 'Registration failed');
       }
+      
+      const data = await response.json();
+      console.log("Registration success response:", data);
       
       // Store token and user data from the response
       localStorage.setItem('token', data.token);
@@ -649,9 +654,9 @@ function App() {
       const token = localStorage.getItem('token');
       
       if (token) {
-        // Try to delete from the server first
+        // Try to delete from the server first - FIXED: Added /api to endpoint
         try {
-          const response = await fetch(`${API_BASE_URL}/quiz-history/${quizId}`, {
+          const response = await fetch(`${API_BASE_URL}/api/quiz-history/${quizId}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${token}`
@@ -700,9 +705,9 @@ function App() {
       const token = localStorage.getItem('token');
       
       if (token) {
-        // Try to clear all from server first
+        // Try to clear all from server first - FIXED: Added /api to endpoint
         try {
-          const response = await fetch(`${API_BASE_URL}/quiz-history`, {
+          const response = await fetch(`${API_BASE_URL}/api/quiz-history`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${token}`
@@ -1289,7 +1294,7 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                         URL.revokeObjectURL(url);
                       }}
                       className="py-2 px-3 rounded-full text-sm font-medium transition flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white active:transform active:scale-95"
-                                        >
+                    >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
@@ -1367,7 +1372,7 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                   <div className="p-4 flex-grow">
                     <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       Questions
-                    </h3>
+                                          </h3>
                     
                     <div className="grid grid-cols-5 gap-2">
                       {mcqs.map((_, index) => {
@@ -1445,6 +1450,18 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
+                    </button>
+                  </div>
+                  
+                  {/* FIXED: Added Submit Quiz button at the top-right for better UX */}
+                  <div className="flex justify-end mb-4">
+                    <button
+                      onClick={handleSubmitQuiz}
+                      className={`py-1.5 px-4 rounded-full text-sm font-medium transition-colors duration-200 
+                        ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} 
+                        text-white active:transform active:scale-95`}
+                    >
+                      Submit Quiz
                     </button>
                   </div>
                   
@@ -1527,16 +1544,7 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                     </div>
                     
                     <div className="flex gap-2">
-                      {/* Added Submit Quiz button */}
-                      <button
-                        onClick={handleSubmitQuiz}
-                        className={`py-2 px-6 rounded text-white font-medium transition-colors duration-200 
-                          ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} 
-                          active:transform active:scale-95`}
-                      >
-                        Submit Quiz
-                      </button>
-                      
+                      {/* Removed duplicate Submit Quiz button from here since we added it at the top */}
                       <button
                         onClick={() => {
                           // Show answer for current question
@@ -1829,11 +1837,11 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                     })}
                   </div>
                   
-                  {/* Mobile buttons - Added Submit Quiz button */}
-                  <div className="flex gap-2 mt-4">
+                  {/* Mobile buttons - FIXED: Moved Submit Quiz button above Next button */}
+                  <div className="flex flex-col gap-2 mt-4">
                     <button
                       onClick={handleSubmitQuiz}
-                      className={`flex-1 py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
+                      className={`w-full py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
                         darkMode 
                           ? 'bg-blue-600 hover:bg-blue-700' 
                           : 'bg-blue-600 hover:bg-blue-700'
@@ -1856,7 +1864,7 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                           saveQuizResult();
                         }
                       }}
-                      className={`flex-1 py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
+                      className={`w-full py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
                         darkMode 
                           ? 'bg-orange-600 hover:bg-orange-700' 
                           : 'bg-purple-600 hover:bg-purple-700'
@@ -2111,7 +2119,7 @@ Current User's Login: ${user?.username || 'Guest User'}`;
             SnapQuiz • Created by Pranjal-045
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-            Current Date and Time (UTC): 2025-07-05 05:17:39
+            Current Date and Time (UTC): 2025-07-05 08:13:34
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
             Current User's Login: {user?.username || 'Guest User'}
