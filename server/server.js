@@ -135,16 +135,23 @@ const auth = async (req, res, next) => {
 
 // FIXED: Route prefix handling - support both /api/register and /register paths
 // Authentication routes - added detailed logging
+// In the registration route handler:
 app.post(['/api/register', '/register'], async (req, res) => {
   try {
     const { username, email, password } = req.body;
     console.log(`Registration attempt for: ${username}, ${email}`);
     
-    // Check if user already exists
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) {
-      console.log(`User already exists: ${existingUser.username}`);
-      return res.status(400).json({ message: 'User already exists with that email or username' });
+    // IMPROVED ERROR HANDLING: Check for existing username/email separately
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      console.log(`Username already exists: ${username}`);
+      return res.status(400).json({ message: 'Username already taken, please choose another one' });
+    }
+    
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      console.log(`Email already exists: ${email}`);
+      return res.status(400).json({ message: 'Email already registered, please use another email or try logging in' });
     }
     
     // Hash password
@@ -177,11 +184,21 @@ app.post(['/api/register', '/register'], async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: 'Server error' });
+    // IMPROVED ERROR HANDLING: Log detailed error and provide better message
+    console.error('Registration error details:', error);
+    
+    // Return more specific error messages based on error type
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: 'Validation error: ' + error.message });
+    } else if (error.name === 'MongoError' && error.code === 11000) {
+      return res.status(400).json({ message: 'This username or email is already taken' });
+    } else if (error.name === 'MongoNetworkError') {
+      return res.status(503).json({ message: 'Database connection error, please try again later' });
+    }
+    
+    res.status(500).json({ message: 'Server error: ' + error.message });
   }
 });
-
 // FIXED: Login route supporting both /api/login and /login paths
 app.post(['/api/login', '/login'], async (req, res) => {
   try {
