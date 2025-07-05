@@ -43,7 +43,7 @@ function App() {
   // State to determine if we're in mobile view
   const [isMobileView, setIsMobileView] = useState(false);
 
-  const [formattedDateTime, setFormattedDateTime] = useState('2025-07-03 10:31:40');
+  const [formattedDateTime, setFormattedDateTime] = useState('2025-07-05 03:42:00');
   const [showSidebar, setShowSidebar] = useState(false); // For mobile sidebar toggle
 
   // Timer state
@@ -64,6 +64,50 @@ function App() {
     return () => {
       window.removeEventListener('resize', checkMobileView);
     };
+  }, []);
+
+  // Save current app state for page persistence
+  useEffect(() => {
+    if (mcqs.length > 0) {
+      // Save the current state to localStorage
+      const appState = {
+        mcqs,
+        fileName,
+        selectedOptions,
+        showAnswers,
+        currentPage,
+        quizStartTime: quizStartTime ? quizStartTime.toString() : null,
+        quizId,
+        timeLimit
+      };
+      localStorage.setItem('appState', JSON.stringify(appState));
+    }
+  }, [mcqs, fileName, selectedOptions, showAnswers, currentPage, quizStartTime, quizId, timeLimit]);
+
+  // Restore app state on reload
+  useEffect(() => {
+    const savedState = localStorage.getItem('appState');
+    if (savedState) {
+      try {
+        const parsedState = JSON.parse(savedState);
+        if (parsedState.mcqs && parsedState.mcqs.length > 0) {
+          setMcqs(parsedState.mcqs);
+          setFileName(parsedState.fileName || "");
+          setSelectedOptions(parsedState.selectedOptions || {});
+          setShowAnswers(parsedState.showAnswers || {});
+          setCurrentPage(parsedState.currentPage || 0);
+          setQuizId(parsedState.quizId);
+          setTimeLimit(parsedState.timeLimit || 0);
+          
+          if (parsedState.quizStartTime) {
+            setQuizStartTime(parseInt(parsedState.quizStartTime));
+          }
+        }
+      } catch (e) {
+        console.error("Error restoring state:", e);
+        localStorage.removeItem('appState');
+      }
+    }
   }, []);
 
   // Save dark mode preference to localStorage
@@ -145,10 +189,13 @@ function App() {
     }
   }, [mcqs, quizStartTime]);
   
-  // Check if user is logged in
+  // Check if user is logged in and close history panel on reload
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
+    
+    // Close history panel on reload
+    setShowHistory(false);
     
     if (storedToken && storedUser) {
       try {
@@ -281,7 +328,7 @@ function App() {
       // Try API call and handle errors gracefully
       let mcqsData = [];
       try {
-        // FIXED: Properly using environment variable with template literals
+        // Using Vite environment variable syntax
         const res = await axios.post(`${import.meta.env.VITE_RAG_URL}/upload`, formData, {
           headers: {
             ...headers,
@@ -445,19 +492,19 @@ function App() {
       
       const storedUsers = JSON.parse(localStorage.getItem('mcq_users') || '[]');
       
-      if (storedUsers.length === 0 && username === 'Pranjal-045' && password === 'password123') {
+      if (storedUsers.length === 0 && username === 'user' && password === 'password') {
         const defaultUser = {
           id: 'user123',
-          username: 'Pranjal-045',
-          email: 'pranjal045@example.com'
+          username: 'user',
+          email: 'user@example.com'
         };
         
         localStorage.setItem('mcq_users', JSON.stringify([
           {
             id: 'user123',
-            username: 'Pranjal-045',
-            email: 'pranjal045@example.com',
-            password: 'password123'
+            username: 'user',
+            email: 'user@example.com',
+            password: 'password'
           }
         ]));
         
@@ -713,7 +760,7 @@ function App() {
                   {user.username.charAt(0).toUpperCase()}
                 </div>
                 <span className="mr-2 text-white text-sm">
-                  {user.username || 'Pranjal-045'}
+                  {user.username || 'User'}
                 </span>
                 <button
                   onClick={() => setShowHistory(!showHistory)}
@@ -802,7 +849,7 @@ function App() {
           <div className={`${!isMobileView && showHistory ? 'lg:w-3/5' : 'w-full'} flex-grow flex flex-col`}>
             {mcqs.length === 0 ? (
               // Landing page content with updated app name
-              <div className={`rounded-3xl shadow-xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 flex-grow`}>
+              <div className={`rounded-3xl shadow-xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 flex-grow flex flex-col`}>
                 {/* Landing Page Description */}
                 <div className="mb-4">
                   <h1 className={`text-xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-purple-800'}`}>
@@ -1006,6 +1053,21 @@ function App() {
                     "Generate Questions"
                   )}
                 </button>
+                
+                {/* Added bullet point features at the bottom */}
+                <div className="mt-auto pt-8">
+                  <h3 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-white' : 'text-purple-700'}`}>
+                    Key Features:
+                  </h3>
+                  <ul className={`list-disc pl-5 text-xs space-y-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <li>Upload any PDF document and instantly generate tailored quiz questions</li>
+                    <li>Choose the number of questions and time limit to customize your learning experience</li>
+                    <li>Track your progress with detailed quiz history and performance analytics</li>
+                    <li>Get helpful hints when you're stuck on challenging questions</li>
+                    <li>Download quiz results for offline review and study</li>
+                    <li>Clean, responsive interface that works on any device</li>
+                  </ul>
+                </div>
               </div>
             ) : isQuizComplete ? (
               // Results screen with updated app name
@@ -1116,7 +1178,7 @@ Result: ${isCorrect ? 'Correct' : 'Wrong'}
 }).join('')}
 Generated by SnapQuiz • ${new Date().toLocaleString()}
 Current Date and Time (UTC): ${formattedDateTime}
-Current User's Login: ${user?.username || 'Pranjal-045'}`;
+Current User's Login: ${user?.username || 'Guest User'}`;
 
                         const blob = new Blob([content], { type: 'text/plain' });
                         const url = URL.createObjectURL(blob);
@@ -1146,6 +1208,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                         setCurrentPage(0);
                         setQuizStartTime(null);
                         setQuizId(null);
+                        localStorage.removeItem('appState');
                       }}
                       className={`py-2 px-3 rounded-full text-sm font-medium transition flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white active:transform active:scale-95`}
                     >
@@ -1153,7 +1216,9 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
                       New Quiz
-                    </button>                    <button
+                    </button>
+
+                    <button
                       onClick={() => {
                         setSelectedOptions({});
                         setShowAnswers({});
@@ -1242,7 +1307,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                   {/* User info with updated date time format */}
                   <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                     <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Current User: {user?.username || 'Pranjal-045'}
+                      Current User: {user?.username || 'Guest User'}
                     </div>
                     <div className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                       {formattedDateTime}
@@ -1273,7 +1338,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                     
                     <button 
                       onClick={() => currentPage < mcqs.length - 1 && setCurrentPage(currentPage + 1)}
-                      className={`flex items-center text-sm ${
+                                            className={`flex items-center text-sm ${
                         darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
                       } ${currentPage === mcqs.length - 1 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                       disabled={currentPage === mcqs.length - 1}
@@ -1683,7 +1748,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
           </div>
         </div>
 
-        {/* Authentication Modal */}
+        {/* Authentication Modal - Updated to fix light mode styles and remove default credentials */}
         {showAuthModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className={`w-full max-w-md rounded-3xl shadow-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} p-5`}>
@@ -1745,7 +1810,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                       className={`w-full rounded-full text-sm ${
                         darkMode 
                           ? "bg-gray-700 border-gray-600 text-white" 
-                          : "border-gray-300"
+                          : "bg-white border border-gray-300 text-gray-800"
                       } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
                     />
                   </div>
@@ -1759,7 +1824,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                       className={`w-full rounded-full text-sm ${
                         darkMode 
                           ? "bg-gray-700 border-gray-600 text-white" 
-                          : "border-gray-300"
+                          : "bg-white border border-gray-300 text-gray-800"
                       } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
                     />
                   </div>
@@ -1806,7 +1871,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                       className={`w-full rounded-full text-sm ${
                         darkMode 
                           ? "bg-gray-700 border-gray-600 text-white" 
-                          : "border-gray-300"
+                          : "bg-white border border-gray-300 text-gray-800"
                       } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
                     />
                   </div>
@@ -1820,7 +1885,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                       className={`w-full rounded-full text-sm ${
                         darkMode 
                           ? "bg-gray-700 border-gray-600 text-white" 
-                          : "border-gray-300"
+                          : "bg-white border border-gray-300 text-gray-800"
                       } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
                     />
                   </div>
@@ -1834,7 +1899,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                       className={`w-full rounded-full text-sm ${
                         darkMode 
                           ? "bg-gray-700 border-gray-600 text-white" 
-                          : "border-gray-300"
+                          : "bg-white border border-gray-300 text-gray-800"
                       } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
                     />
                   </div>
@@ -1848,7 +1913,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                       className={`w-full rounded-full text-sm ${
                         darkMode 
                           ? "bg-gray-700 border-gray-600 text-white" 
-                          : "border-gray-300"
+                          : "bg-white border border-gray-300 text-gray-800"
                       } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
                     />
                   </div>
@@ -1876,17 +1941,7 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
                 </form>
               )}
               
-              {/* Default credentials notice - Updated with current date/time */}
-              {authMode === 'login' && (
-                <div className={`mt-3 text-xs ${darkMode ? "text-gray-400" : "text-gray-600"} bg-opacity-50 p-2 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-100"}`}>
-                  <p>Default credentials:</p>
-                  <p className="font-medium mt-1">Username: Pranjal-045</p>
-                  <p className="font-medium">Password: password123</p>
-                  <p className={`mt-1 text-xs ${darkMode ? "text-gray-500" : "text-gray-500"}`}>
-                    Current Date and Time (UTC): 2025-07-05 03:16:09
-                  </p>
-                </div>
-              )}
+              {/* Removed default credentials section as requested */}
             </div>
           </div>
         )}
@@ -1929,13 +1984,13 @@ Current User's Login: ${user?.username || 'Pranjal-045'}`;
           </div>
         )}
 
-        {/* Footer - more compact with updated branding */}
+        {/* Footer - more compact with updated branding and date/time */}
         <footer className={`mt-auto text-center text-sm py-2`}>
           <p className={`${darkMode ? "text-white/60" : "text-white/80"} text-xs`}>
             SnapQuiz • Created by Pranjal-045
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-            Current Date and Time (UTC): 2025-07-05 03:16:09
+            Current Date and Time (UTC): 2025-07-05 03:48:30
           </p>
           <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
             Current User's Login: Pranjal-045
