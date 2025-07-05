@@ -15,9 +15,21 @@ const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(cors({
-  // FIXED: Allow requests from any origin during development
-  origin: process.env.CLIENT_URL || '*',
-  credentials: true
+  // Explicitly list allowed origins
+  origin: [
+    'https://snapquiz-hthqzphsl-pranjal-077s-projects.vercel.app',
+    'https://snapquiz-node-backend.onrender.com',
+    'http://localhost:5173', // For local development
+    'http://localhost:3000'  // For local development
+  ],
+  // Allow credentials
+  credentials: true,
+  // Specify which methods to allow
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  // Allow these headers
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  // Cache preflight for 1 hour (3600 seconds)
+  maxAge: 3600
 }));
 app.use(express.json());
 app.use(bodyParser.json());
