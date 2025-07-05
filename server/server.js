@@ -14,29 +14,28 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // Middleware
-// REPLACE YOUR EXISTING CORS CONFIGURATION WITH THIS:
-// This will allow all Vercel deployments for your project
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl requests)
-    if (!origin) return callback(null, true);
+    // Allow requests from these origins
+    const allowedOrigins = [
+      'https://snapquiz-one.vercel.app',                         // Your new domain
+      'https://snapquiz-a8u5c7rv8-pranjal-077s-projects.vercel.app', // Previous domain
+      'http://localhost:5173',                                   // Local development
+      'http://localhost:3000'                                    // Local development
+    ];
     
-    // Allow all Vercel deployments for your project
-    if (origin.endsWith('pranjal-077s-projects.vercel.app')) {
-      return callback(null, true);
+    // For development, allow requests with no origin (like Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log(`CORS blocked request from: ${origin}`);
+      callback(null, true);  // TEMPORARILY ALLOW ALL ORIGINS WHILE DEBUGGING
     }
-    
-    // Allow localhost for development
-    if (origin.match(/http:\/\/localhost:[0-9]+/)) {
-      return callback(null, true);
-    }
-    
-    // Otherwise, block the request
-    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
 }));
 
 app.use(express.json());
@@ -159,19 +158,31 @@ const auth = async (req, res, next) => {
 app.post(['/api/register', '/register'], async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    console.log(`Registration attempt for: ${username}, ${email}`);
     
-    // IMPROVED ERROR HANDLING: Check for existing username/email separately
-    const existingUsername = await User.findOne({ username });
-    if (existingUsername) {
-      console.log(`Username already exists: ${username}`);
-      return res.status(400).json({ message: 'Username already taken, please choose another one' });
+    // Log request body (for debugging)
+    console.log("Registration request received:");
+    console.log("Username:", username);
+    console.log("Email:", email);
+    console.log("Password:", password ? "provided" : "missing");
+    
+    // Validate required fields
+    if (!username || !email || !password) {
+      console.log("Registration failed: Missing required fields");
+      return res.status(400).json({ 
+        message: "All fields are required",
+        missing: {
+          username: !username,
+          email: !email,
+          password: !password
+        }
+      });
     }
     
-    const existingEmail = await User.findOne({ email });
-    if (existingEmail) {
-      console.log(`Email already exists: ${email}`);
-      return res.status(400).json({ message: 'Email already registered, please use another email or try logging in' });
+    // Check if user already exists
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) {
+      console.log(`User already exists: ${existingUser.username}`);
+      return res.status(400).json({ message: 'User already exists with that email or username' });
     }
     
     // Hash password
@@ -204,18 +215,7 @@ app.post(['/api/register', '/register'], async (req, res) => {
       }
     });
   } catch (error) {
-    // IMPROVED ERROR HANDLING: Log detailed error and provide better message
-    console.error('Registration error details:', error);
-    
-    // Return more specific error messages based on error type
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ message: 'Validation error: ' + error.message });
-    } else if (error.name === 'MongoError' && error.code === 11000) {
-      return res.status(400).json({ message: 'This username or email is already taken' });
-    } else if (error.name === 'MongoNetworkError') {
-      return res.status(503).json({ message: 'Database connection error, please try again later' });
-    }
-    
+    console.error('Registration error:', error);
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 });
