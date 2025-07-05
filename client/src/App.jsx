@@ -132,27 +132,29 @@ function App() {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const updateDateTime = () => {
-      const now = new Date();
-      
-      // Format date as YYYY-MM-DD HH:MM:SS (UTC)
-      const year = now.getUTCFullYear();
-      const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(now.getUTCDate()).padStart(2, '0');
-      const hours = String(now.getUTCHours()).padStart(2, '0');
-      const minutes = String(now.getUTCMinutes()).padStart(2, '0');
-      const seconds = String(now.getUTCSeconds()).padStart(2, '0');
-      
-      const formatted = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-      setFormattedDateTime(formatted);
-    };
+  // In your App.jsx, locate this section in your useEffect for date formatting:
+useEffect(() => {
+  const updateDateTime = () => {
+    // REPLACE THE CURRENT CODE WITH THIS:
+    const now = new Date();
     
-    updateDateTime();
-    const interval = setInterval(updateDateTime, 1000);
+    // Format date as YYYY-MM-DD HH:MM:SS (UTC)
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(now.getUTCDate()).padStart(2, '0');
+    const hours = String(now.getUTCHours()).padStart(2, '0');
+    const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(now.getUTCSeconds()).padStart(2, '0');
     
-    return () => clearInterval(interval);
-  }, []);
+    const formatted = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    setFormattedDateTime(formatted);
+  };
+  
+  updateDateTime();
+  const interval = setInterval(updateDateTime, 1000);
+  
+  return () => clearInterval(interval);
+}, []);
 
   // Update timer countdown
   useEffect(() => {
@@ -2115,16 +2117,16 @@ Current User's Login: ${user?.username || 'Guest User'}`;
 
         {/* Footer - more compact with updated branding and date/time */}
         <footer className={`mt-auto text-center text-sm py-2`}>
-          <p className={`${darkMode ? "text-white/60" : "text-white/80"} text-xs`}>
-            SnapQuiz • Created by Pranjal-045
-          </p>
-          <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-            Current Date and Time (UTC): 2025-07-05 08:13:34
-          </p>
-          <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
-            Current User's Login: {user?.username || 'Guest User'}
-          </p>
-        </footer>
+  <p className={`${darkMode ? "text-white/60" : "text-white/80"} text-xs`}>
+    SnapQuiz • Created by Pranjal-045
+  </p>
+  <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
+    Current Date and Time (UTC): {formattedDateTime}
+  </p>
+  <p className={`text-xs mt-0.5 ${darkMode ? "text-white/40" : "text-white/60"}`}>
+    Current User's Login: {user?.username || 'Guest User'}
+  </p>
+</footer>
       </div>
     </div>
   );
