@@ -18,7 +18,7 @@ function App() {
   });
 
   // API URL configuration
-  const API_BASE_URL = 'http://localhost:5001/api';
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
   // Progress tracking states
   const [uploadProgress, setUploadProgress] = useState(0);
