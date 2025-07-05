@@ -478,6 +478,12 @@ useEffect(() => {
     setShowAnswers(newShowAnswers);
     saveQuizResult();
     alert("Quiz submitted successfully!");
+    setShowResult(true);
+  
+  // Navigate to statistics page after a short delay (for better UX)
+  setTimeout(() => {
+    navigate('/statistics');
+  }, 1500); 
   };
 
   const saveQuizResult = async () => {
@@ -599,57 +605,59 @@ useEffect(() => {
     }
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    const username = e.target.elements[0].value;
-    const email = e.target.elements[1].value;
-    const password = e.target.elements[2].value;
-    const confirmPassword = e.target.elements[3].value;
+ const handleRegister = async (e) => {
+  e.preventDefault();
+  
+  // IMPORTANT: Correctly extract form values
+  const formElements = e.target.elements;
+  const username = formElements.username?.value || formElements[0]?.value;
+  const email = formElements.email?.value || formElements[1]?.value;
+  const password = formElements.password?.value || formElements[2]?.value;
+  const confirmPassword = formElements.confirmPassword?.value || formElements[3]?.value;
+  
+  console.log("Form data being submitted:", { username, email, password: password ? "PRESENT" : "MISSING" });
+  
+  if (!username || !email || !password) {
+    setAuthError("All fields are required");
+    return;
+  }
+  
+  try {
+    setLoading(true);
+    setAuthError("");
     
-    try {
-      setLoading(true);
-      setAuthError("");
-      
-      if (password !== confirmPassword) {
-        setAuthError("Passwords do not match");
-        return;
-      }
-      
-      // FIXED: Added /api to endpoint
-      console.log(`Attempting to register with ${API_BASE_URL}/api/register`);
-      const response = await fetch(`${API_BASE_URL}/api/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, password }),
-      });
-      
-      if (!response.ok) {
-        // Get detailed error message from response
-        const errorData = await response.json();
-        console.error("Registration failed with status:", response.status);
-        throw new Error(errorData.message || 'Registration failed');
-      }
-      
-      const data = await response.json();
-      console.log("Registration success response:", data);
-      
-      // Store token and user data from the response
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      // Update user state
-      setUser(data.user);
-      setShowAuthModal(false);
-      
-    } catch (error) {
-      console.error('Registration error:', error);
-      setAuthError(error.message || "An error occurred during registration");
-    } finally {
-      setLoading(false);
+    if (password !== confirmPassword) {
+      setAuthError("Passwords do not match");
+      return;
     }
-  };
+    
+    // Rest of your registration code...
+    const response = await fetch(`${API_BASE_URL}/api/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username, email, password }),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Registration failed');
+    }
+    
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    setUser(data.user);
+    setShowAuthModal(false);
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    setAuthError(error.message || "An error occurred during registration");
+  } finally {
+    setLoading(false);
+  }
+};
   
   const handleDeleteQuiz = async (quizId) => {
     try {
@@ -1842,17 +1850,6 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                   {/* Mobile buttons - FIXED: Moved Submit Quiz button above Next button */}
                   <div className="flex flex-col gap-2 mt-4">
                     <button
-                      onClick={handleSubmitQuiz}
-                      className={`w-full py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
-                        darkMode 
-                          ? 'bg-blue-600 hover:bg-blue-700' 
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
-                    >
-                      Submit Quiz
-                    </button>
-                    
-                    <button
                       onClick={() => {
                         if (currentPage < mcqs.length - 1) {
                           setCurrentPage(currentPage + 1);
@@ -1874,6 +1871,17 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                     >
                       {currentPage < mcqs.length - 1 ? 'Next' : 'Finish'}
                     </button>
+                    <button
+                      onClick={handleSubmitQuiz}
+                      className={`w-full py-2 rounded-full font-medium text-sm text-white transition-all duration-200 active:transform active:scale-95 ${
+                        darkMode 
+                          ? 'bg-blue-600 hover:bg-blue-700' 
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      Submit Quiz
+                    </button>
+                    
                   </div>
                 </div>
               </div>
@@ -1985,93 +1993,89 @@ Current User's Login: ${user?.username || 'Guest User'}`;
                 </form>
               ) : (
                 <form onSubmit={handleRegister} className="space-y-3">
-                  {authError && (
-                    <div className={`p-2 rounded-md text-xs ${
-                      darkMode 
-                        ? "bg-red-900/30 text-red-300" 
-                        : "bg-red-100 text-red-700"
-                    }`}>
-                      {authError}
-                    </div>
-                  )}
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      className={`w-full rounded-full text-sm ${
-                        darkMode 
-                          ? "bg-gray-700 border-gray-600 text-white" 
-                          : "bg-white border border-gray-300 text-gray-800"
-                      } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      className={`w-full rounded-full text-sm ${
-                        darkMode 
-                          ? "bg-gray-700 border-gray-600 text-white" 
-                          : "bg-white border border-gray-300 text-gray-800"
-                      } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      className={`w-full rounded-full text-sm ${
-                        darkMode 
-                          ? "bg-gray-700 border-gray-600 text-white" 
-                          : "bg-white border border-gray-300 text-gray-800"
-                      } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
-                      Confirm Password
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      className={`w-full rounded-full text-sm ${
-                        darkMode 
-                          ? "bg-gray-700 border-gray-600 text-white" 
-                          : "bg-white border border-gray-300 text-gray-800"
-                      } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className={`w-full font-medium py-1.5 rounded-full transition-all duration-200 active:transform active:scale-95 text-sm ${
-                      loading
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : darkMode
-                          ? "bg-purple-600 hover:bg-purple-500 text-white"
-                          : "bg-purple-600 hover:bg-purple-700 text-white"
-                    }`}
-                  >
-                    {loading ? (
-                      <div className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Registering...
-                      </div>
-                    ) : "Register"}
-                  </button>
-                </form>
+  {/* ... error message ... */}
+  <div>
+    <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
+      Username
+    </label>
+    <input
+      type="text"
+      name="username" // Add this name attribute
+      required
+      className={`w-full rounded-full text-sm ${
+        darkMode 
+          ? "bg-gray-700 border-gray-600 text-white" 
+          : "bg-white border border-gray-300 text-gray-800"
+      } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
+    />
+  </div>
+  <div>
+    <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
+      Email
+    </label>
+    <input
+      type="email"
+      name="email" // Add this name attribute
+      required
+      className={`w-full rounded-full text-sm ${
+        darkMode 
+          ? "bg-gray-700 border-gray-600 text-white" 
+          : "bg-white border border-gray-300 text-gray-800"
+      } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
+    />
+  </div>
+  <div>
+    <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
+      Password
+    </label>
+    <input
+      type="password"
+      name="password" // Add this name attribute
+      required
+      className={`w-full rounded-full text-sm ${
+        darkMode 
+          ? "bg-gray-700 border-gray-600 text-white" 
+          : "bg-white border border-gray-300 text-gray-800"
+      } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
+    />
+  </div>
+  <div>
+    <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
+      Confirm Password
+    </label>
+    <input
+      type="password"
+      name="confirmPassword" // Add this name attribute
+      required
+      className={`w-full rounded-full text-sm ${
+        darkMode 
+          ? "bg-gray-700 border-gray-600 text-white" 
+          : "bg-white border border-gray-300 text-gray-800"
+      } px-3 py-1.5 focus:ring-purple-500 focus:border-purple-500`}
+    />
+  </div>
+  <button
+    type="submit"
+    disabled={loading}
+    className={`w-full font-medium py-1.5 rounded-full transition-all duration-200 active:transform active:scale-95 text-sm ${
+      loading
+        ? "bg-gray-400 cursor-not-allowed"
+        : darkMode
+          ? "bg-purple-600 hover:bg-purple-500 text-white"
+          : "bg-purple-600 hover:bg-purple-700 text-white"
+    }`}
+  >
+    {loading ? (
+      <div className="flex items-center justify-center">
+        <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Registering...
+      </div>
+    ) : "Register"}
+  </button>
+</form>
               )}
             </div>
           </div>
