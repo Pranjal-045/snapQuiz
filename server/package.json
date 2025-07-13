@@ -1,7 +1,7 @@
 {
-  "name": "snapquiz-server",
+  "name": "hackfolio-server",
   "version": "1.0.0",
-  "description": "Backend server for SnapQuiz MCQ Generator App",
+  "description": "Backend server for Hackfolio - AI-powered resume builder",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -27,7 +27,7 @@
   "devDependencies": {
     "nodemon": "^2.0.22"
   },
-  "keywords": ["quiz", "mcq", "generator", "pdf", "ai"],
+  "keywords": ["resume", "builder", "ai", "mern", "react", "express"],
   "author": "Pranjal-045",
   "license": "ISC"
 }
