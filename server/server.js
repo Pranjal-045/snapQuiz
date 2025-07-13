@@ -1,7 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const bodyParser = require('body-parser');
@@ -18,10 +17,9 @@ app.use(cors({
   origin: function(origin, callback) {
     // Allow requests from these origins
     const allowedOrigins = [
-      'https://snapquiz-one.vercel.app',                         // Your new domain
-      'https://snapquiz-a8u5c7rv8-pranjal-077s-projects.vercel.app', // Previous domain
-      'http://localhost:5173',                                   // Local development
-      'http://localhost:3000'                                    // Local development
+      'http://localhost:5173',  // Vite dev server
+      'http://localhost:3000',  // Alternative dev server
+      'http://localhost:4173',  // Vite preview
     ];
     
     // For development, allow requests with no origin (like Postman)
@@ -29,7 +27,7 @@ app.use(cors({
       callback(null, true);
     } else {
       console.log(`CORS blocked request from: ${origin}`);
-      callback(null, true);  // TEMPORARILY ALLOW ALL ORIGINS WHILE DEBUGGING
+      callback(null, true);  // Allow all origins for development
     }
   },
   credentials: true,
@@ -41,32 +39,19 @@ app.use(cors({
 app.use(express.json());
 app.use(bodyParser.json());
 
-// Better logging for debugging registration issues
+// Request logging middleware
 app.use((req, res, next) => {
-  // Log all requests with method, path, and timestamp
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  if (req.path === '/register' || req.path === '/api/register') {
-    console.log('Registration attempt received');
-  }
   next();
 });
 
-// Create uploads directory
-const uploadsDir = path.join(__dirname, 'uploads');
-const fs = require('fs');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Connect to MongoDB with error handling
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/quiz_app', {
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/hackfolio', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
 .then(() => {
   console.log('MongoDB Connected Successfully!');
-  
-  // Test ping to verify connection
   return mongoose.connection.db.admin().ping();
 })
 .then(() => {
@@ -74,13 +59,6 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/quiz_app'
 })
 .catch(err => {
   console.error('❌ MongoDB Connection Error:', err.message);
-  
-  // More detailed error info
-  if (err.name === 'MongoNetworkError') {
-    console.error('Network issue - check your connection string or firewall settings');
-  } else if (err.name === 'MongoServerSelectionError') {
-    console.error('Server selection timeout - cluster might be down or unreachable');
-  }
 });
 
 // MongoDB connection event listeners
@@ -105,23 +83,59 @@ const userSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Quiz result model
-const quizResultSchema = new mongoose.Schema({
+// Resume model
+const resumeSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  quizId: { type: String, required: true },
-  title: { type: String, default: 'Untitled Quiz' },
-  numQuestions: { type: Number, required: true },
-  correctAnswers: { type: Number, required: true },
-  totalQuestions: { type: Number, required: true },
-  timeTaken: { type: Number, required: true },
-  questions: [{ type: Object }],
-  userAnswers: { type: Object },
-  createdAt: { type: Date, default: Date.now }
+  title: { type: String, required: true },
+  personalInfo: {
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    email: { type: String, required: true },
+    phone: { type: String },
+    address: { type: String },
+    linkedIn: { type: String },
+    website: { type: String }
+  },
+  summary: { type: String },
+  experience: [{
+    company: { type: String, required: true },
+    position: { type: String, required: true },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date },
+    current: { type: Boolean, default: false },
+    description: { type: String }
+  }],
+  education: [{
+    institution: { type: String, required: true },
+    degree: { type: String, required: true },
+    field: { type: String },
+    startDate: { type: Date },
+    endDate: { type: Date },
+    gpa: { type: String }
+  }],
+  skills: [{ type: String }],
+  projects: [{
+    name: { type: String, required: true },
+    description: { type: String },
+    technologies: [{ type: String }],
+    url: { type: String },
+    startDate: { type: Date },
+    endDate: { type: Date }
+  }],
+  certifications: [{
+    name: { type: String, required: true },
+    issuer: { type: String, required: true },
+    date: { type: Date },
+    url: { type: String }
+  }],
+  template: { type: String, default: 'modern' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
 });
 
 // Create models
 const User = mongoose.model('User', userSchema);
-const QuizResult = mongoose.model('QuizResult', quizResultSchema);
+const Resume = mongoose.model('Resume', resumeSchema);
 
 // Auth middleware
 const auth = async (req, res, next) => {
@@ -152,14 +166,11 @@ const auth = async (req, res, next) => {
   }
 };
 
-// FIXED: Route prefix handling - support both /api/register and /register paths
-// Authentication routes - added detailed logging
-// In the registration route handler:
+// Authentication routes
 app.post(['/api/register', '/register'], async (req, res) => {
   try {
     const { username, email, password } = req.body;
     
-    // Log request body (for debugging)
     console.log("Registration request received:");
     console.log("Username:", username);
     console.log("Email:", email);
@@ -203,7 +214,7 @@ app.post(['/api/register', '/register'], async (req, res) => {
     const token = jwt.sign(
       { id: user._id, username: user.username },
       process.env.JWT_SECRET || 'your_jwt_secret',
-      { expiresIn: '1h' }
+      { expiresIn: '24h' }
     );
     
     res.status(201).json({
@@ -219,7 +230,7 @@ app.post(['/api/register', '/register'], async (req, res) => {
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 });
-// FIXED: Login route supporting both /api/login and /login paths
+
 app.post(['/api/login', '/login'], async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -245,7 +256,7 @@ app.post(['/api/login', '/login'], async (req, res) => {
     const token = jwt.sign(
       { id: user._id, username: user.username },
       process.env.JWT_SECRET || 'your_jwt_secret',
-      { expiresIn: '1h' }
+      { expiresIn: '24h' }
     );
     
     console.log(`Login successful for: ${user.username}`);
@@ -264,94 +275,105 @@ app.post(['/api/login', '/login'], async (req, res) => {
   }
 });
 
-// Protected routes - support both paths
+// Protected routes
 app.get(['/api/me', '/me'], auth, async (req, res) => {
   res.json(req.user);
 });
 
-// Quiz result routes with both path patterns
-app.post(['/api/quiz-result', '/quiz-result'], auth, async (req, res) => {
+// Resume routes
+app.get(['/api/resumes', '/resumes'], auth, async (req, res) => {
   try {
-    const { quizId, title, numQuestions, correctAnswers, totalQuestions, timeTaken, questions, userAnswers } = req.body;
-    
-    const quizResult = new QuizResult({
-      userId: req.user.id,
-      quizId,
-      title,
-      numQuestions,
-      correctAnswers,
-      totalQuestions,
-      timeTaken,
-      questions,
-      userAnswers
-    });
-    
-    await quizResult.save();
-    console.log(`Quiz result saved for user: ${req.user.username}, score: ${correctAnswers}/${totalQuestions}`);
-    
-    res.status(201).json(quizResult);
+    const resumes = await Resume.find({ userId: req.user.id }).sort({ updatedAt: -1 });
+    res.json(resumes);
   } catch (error) {
-    console.error('Save quiz error:', error);
+    console.error('Get resumes error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-app.get(['/api/quiz-history', '/quiz-history'], auth, async (req, res) => {
+app.post(['/api/resumes', '/resumes'], auth, async (req, res) => {
   try {
-    const quizResults = await QuizResult.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    const resumeData = {
+      ...req.body,
+      userId: req.user.id,
+      updatedAt: new Date()
+    };
     
-    // Format for frontend
-    const formattedResults = quizResults.map(quiz => ({
-      id: quiz.quizId,
-      title: quiz.title,
-      created_at: quiz.createdAt.toISOString(),
-      num_questions: quiz.numQuestions,
-      correct_answers: quiz.correctAnswers,
-      total_questions: quiz.totalQuestions,
-      time_taken: quiz.timeTaken,
-      questions: quiz.questions,
-      user_answers: quiz.userAnswers
-    }));
+    const resume = new Resume(resumeData);
+    await resume.save();
     
-    res.json(formattedResults);
+    console.log(`Resume created for user: ${req.user.username}, title: ${resume.title}`);
+    res.status(201).json(resume);
   } catch (error) {
-    console.error('Get quiz history error:', error);
+    console.error('Create resume error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-app.delete(['/api/quiz-history/:id', '/quiz-history/:id'], auth, async (req, res) => {
+app.get(['/api/resumes/:id', '/resumes/:id'], auth, async (req, res) => {
   try {
-    const quizId = req.params.id;
-    
-    const result = await QuizResult.deleteOne({ 
-      userId: req.user.id,
-      quizId
+    const resume = await Resume.findOne({ 
+      _id: req.params.id, 
+      userId: req.user.id 
     });
     
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ message: 'Quiz not found or not authorized' });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
     }
     
-    res.json({ message: 'Quiz deleted successfully' });
+    res.json(resume);
   } catch (error) {
-    console.error('Delete quiz error:', error);
+    console.error('Get resume error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-app.delete(['/api/quiz-history', '/quiz-history'], auth, async (req, res) => {
+app.put(['/api/resumes/:id', '/resumes/:id'], auth, async (req, res) => {
   try {
-    const result = await QuizResult.deleteMany({ userId: req.user.id });
+    const resume = await Resume.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.id },
+      { ...req.body, updatedAt: new Date() },
+      { new: true }
+    );
     
-    res.json({ message: `${result.deletedCount} quizzes deleted` });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+    
+    res.json(resume);
   } catch (error) {
-    console.error('Clear history error:', error);
+    console.error('Update resume error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Database test route - helpful for checking connectivity
+app.delete(['/api/resumes/:id', '/resumes/:id'], auth, async (req, res) => {
+  try {
+    const resume = await Resume.findOneAndDelete({ 
+      _id: req.params.id, 
+      userId: req.user.id 
+    });
+    
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+    
+    res.json({ message: 'Resume deleted successfully' });
+  } catch (error) {
+    console.error('Delete resume error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Health check routes
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    service: 'Hackfolio API Server'
+  });
+});
+
 app.get('/api/test-db-connection', async (req, res) => {
   try {
     // Check connection state
@@ -398,23 +420,6 @@ app.get('/api/test-db-connection', async (req, res) => {
   }
 });
 
-// Helper route to get current UTC time in the required format
-app.get(['/api/current-time', '/current-time'], (req, res) => {
-  const now = new Date();
-  
-  // Format date as YYYY-MM-DD HH:MM:SS (UTC)
-  const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(now.getUTCDate()).padStart(2, '0');
-  const hours = String(now.getUTCHours()).padStart(2, '0');
-  const minutes = String(now.getUTCMinutes()).padStart(2, '0');
-  const seconds = String(now.getUTCSeconds()).padStart(2, '0');
-  
-  const formatted = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  
-  res.json({ currentTime: formatted });
-});
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -426,6 +431,6 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Hackfolio API Server running on port ${PORT}`);
   console.log(`Current Date and Time (UTC): ${new Date().toISOString()}`);
 });
